@@ -7,6 +7,10 @@ mouvement(gauche, -1, 0).
 mouvement(droite, 1, 0).
 mouvement(haut, 0, -1).
 mouvement(bas, 0, 1).
+mouvement(haut_gauche, -1, -1).
+mouvement(haut_droite, 1, -1).
+mouvement(bas_gauche, -1, 1).
+mouvement(bas_droite, 1, 1).
 
 % Vérifie si une position est dans les limites de la grille
 dans_limites(X, Y) :-
@@ -122,8 +126,9 @@ afficher_ligne(_, _, _).
 
 % Boucle de jeu
 jouer_tour :-
-    afficher_grille,
+    write('Boucle'), nl,
     poser_mur,
+    afficher_grille,
 
     % Condition de fin de jeu, le chat est bloqué
     (chat_bloque -> true ; joueur_deplace_chat, jouer_tour).
