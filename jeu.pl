@@ -1,6 +1,40 @@
-:- dynamic position/3, mur/2.
+:- dynamic position/3, mur/2, walls/1, possibility/1.
+
+walls([]).
+possibility(8).
 
 grille_taille(10).
+
+print_possibility :-
+    possibility(N),
+    write('Possibility: '), write(N), nl.
+
+print_walls([]).
+print_walls([(X, Y)|Rest]) :-
+    write('('), write(X), write(', '), write(Y), write(')'), nl,
+    print_walls(Rest).
+
+print_all_walls :-
+    walls(WallList),
+    print_walls(WallList).
+
+add_tuple_to_walls(Tuple) :-
+    walls(WallList),
+    append(WallList, [Tuple], NewWallList),
+    retract(walls(WallList)),
+    assert(walls(NewWallList)).
+
+remove_tuple_from_walls(Tuple) :-
+    walls(WallList),
+    delete(WallList, Tuple, NewWallList),
+    retract(walls(WallList)),
+    assert(walls(NewWallList)).
+
+test_add_tuple_to_walls :-
+    add_tuple_to_walls((1, 1)),
+    remove_tuple_from_walls((1, 1)),
+    walls(NewWallList).
+
 
 % Définir les directions de mouvement possibles
 mouvement(gauche, -1, 0).
@@ -22,6 +56,40 @@ dans_limites(X, Y) :-
 case_libre(X, Y) :-
     dans_limites(X, Y),
     \+ mur(X, Y).
+
+
+check_case_for_possibility(Direction, N) :-
+    mouvement(Direction, DX, DY),
+    position(chat, CX, CY),
+    NX is CX + DX,
+    NY is CY + DY,
+    write('N: '), write(N), nl,
+    (\+ case_libre(NX, NY) ->
+        N is N - 1,
+        retract(possibility(N)),
+        write('N1: '), write(N), nl,
+        assert(possibility(N)),
+        print_possibility
+    ;
+        write('Case libre en ('), write(NX), write(', '), write(NY), write(').'), nl
+    ).
+
+check_all_cases_for_possibility :-
+    retract(possibility(_)),
+    assert(possibility(8)),
+    possibility(Possibility),
+    check_case_for_possibility(gauche,Possibility),
+    check_case_for_possibility(droite, Possibility),
+    check_case_for_possibility(haut, Possibility),
+    check_case_for_possibility(bas, Possibility),
+    check_case_for_possibility(haut_gauche, Possibility),
+    check_case_for_possibility(haut_droite, Possibility),
+    check_case_for_possibility(bas_gauche, Possibility),
+    check_case_for_possibility(bas_droite, Possibility).
+
+check_possibility(position(chat, X, Y)) :-
+    distance_manhattan(X, Y, 0, 0, Distance),
+    Possibility is Possibility - Distance.
 
 % Distance de Manhattan entre deux points
 distance_manhattan(X1, Y1, X2, Y2, Distance) :-
@@ -71,6 +139,8 @@ a_star_heuristique(CX, CY, (X, Y), (X, Y, F)) :-
     F is G + H.
     % write('f(n) = '). write(F), nl.
 
+
+% Pose un mur pour bloquer le chat
 poser_mur :-
     position(chat, CX, CY),
     grille_taille(Taille),
@@ -79,6 +149,7 @@ poser_mur :-
     a_star(CX, CY, (X, Y, _)),
 
     assert(mur(X, Y)),
+    add_tuple_to_walls((X, Y)),
     write('L\'IA a pose un mur en ('), write(X), write(Y), write(').'), nl.
 
 % Calcule la distance pour chaque case libre par rapport au chat
@@ -126,7 +197,12 @@ afficher_ligne(_, _, _).
 
 % Boucle de jeu
 jouer_tour :-
+    check_all_cases_for_possibility,
+    write('Possibility: '), print_possibility,
+    test_add_tuple_to_walls,
+    print_all_walls,
     write('Boucle'), nl,
+    write('Walls: '), write(walls), nl,
     poser_mur,
     afficher_grille,
 
@@ -134,7 +210,7 @@ jouer_tour :-
     (chat_bloque -> true ; joueur_deplace_chat, jouer_tour).
 
 joueur_deplace_chat :-
-    write('Entrez une direction pour déplacer le chat (gauche, droite, haut, bas) : '),
+    write('Entrez une direction pour déplacer le chat (gauche, droite, haut, bas, haut_gauche, haut_droite, bas_gauche, bas) : '),
     read(Direction),
 
     (mouvement(Direction, _, _) -> deplacer_chat(Direction) ; write('Direction invalide.'), nl, joueur_deplace_chat).
