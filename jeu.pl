@@ -58,34 +58,33 @@ case_libre(X, Y) :-
     \+ mur(X, Y).
 
 
-check_case_for_possibility(Direction, N) :-
+check_case_for_possibility(Direction, N, N1) :-
     mouvement(Direction, DX, DY),
     position(chat, CX, CY),
     NX is CX + DX,
     NY is CY + DY,
     write('N: '), write(N), nl,
     (\+ case_libre(NX, NY) ->
-        N is N - 1,
-        retract(possibility(N)),
-        write('N1: '), write(N), nl,
-        assert(possibility(N)),
-        print_possibility
+        N1 is N - 1
     ;
-        write('Case libre en ('), write(NX), write(', '), write(NY), write(').'), nl
+        N1 = N
     ).
 
 check_all_cases_for_possibility :-
     retract(possibility(_)),
     assert(possibility(8)),
     possibility(Possibility),
-    check_case_for_possibility(gauche,Possibility),
-    check_case_for_possibility(droite, Possibility),
-    check_case_for_possibility(haut, Possibility),
-    check_case_for_possibility(bas, Possibility),
-    check_case_for_possibility(haut_gauche, Possibility),
-    check_case_for_possibility(haut_droite, Possibility),
-    check_case_for_possibility(bas_gauche, Possibility),
-    check_case_for_possibility(bas_droite, Possibility).
+    check_case_for_possibility(gauche, Possibility, Possibility1),
+    check_case_for_possibility(droite, Possibility1, Possibility2),
+    check_case_for_possibility(haut, Possibility2, Possibility3),
+    check_case_for_possibility(bas, Possibility3, Possibility4),
+    check_case_for_possibility(haut_gauche, Possibility4, Possibility5),
+    check_case_for_possibility(haut_droite, Possibility5, Possibility6),
+    check_case_for_possibility(bas_gauche, Possibility6, Possibility7),
+    check_case_for_possibility(bas_droite, Possibility7, PossibilityFinale),
+    retract(possibility(_)),
+    assert(possibility(PossibilityFinale)),
+    write('Possibilité finale: '), write(PossibilityFinale), nl.
 
 check_possibility(position(chat, X, Y)) :-
     distance_manhattan(X, Y, 0, 0, Distance),
