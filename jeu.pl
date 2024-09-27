@@ -1,6 +1,7 @@
-:- dynamic position/3, mur/2, walls/1, possibility/1.
+:- dynamic position/3, mur/2, walls/1, possibility/1, heuristic_possibilities/1.
 
 walls([]).
+heuristic_possibilities([]).
 possibility(8).
 
 grille_taille(10).
@@ -8,6 +9,11 @@ grille_taille(10).
 print_possibility :-
     possibility(N),
     write('Possibility: '), write(N), nl.
+
+
+print_heuristic_possibilities :-
+    heuristic_possibilities(List),
+    write('Heuristic possibilities: '), write(List), nl.
 
 print_walls([]).
 print_walls([(X, Y)|Rest]) :-
@@ -23,6 +29,12 @@ add_tuple_to_walls(Tuple) :-
     append(WallList, [Tuple], NewWallList),
     retract(walls(WallList)),
     assert(walls(NewWallList)).
+
+add_possibility(N) :-
+    heuristic_possibilities(List),
+    append(List, [N], NewList),
+    retract(heuristic_possibilities(List)),
+    assert(heuristic_possibilities(NewList)).
 
 remove_tuple_from_walls(Tuple) :-
     walls(WallList),
@@ -65,9 +77,8 @@ case_libre(X, Y) :-
     \+ mur(X, Y).
 
 
-check_case_for_possibility(Direction, N, N1) :-
+check_case_for_possibility(CX, CY, Direction, N, N1) :-
     mouvement(Direction, DX, DY),
-    position(chat, CX, CY),
     NX is CX + DX,
     NY is CY + DY,
     (\+ case_libre(NX, NY) ->
@@ -80,24 +91,62 @@ get_all_cases_around_chat(Cases) :-
     position(chat, CX, CY),
     findall((X, Y), (mouvement(_, DX, DY), NX is CX + DX, NY is CY + DY, case_libre(NX, NY)), Cases).
 
-check_all_cases_for_possibility :-
+check_all_cases_for_possibility(CX, CY) :-
     retract(possibility(_)),
     assert(possibility(8)),
     possibility(Possibility),
-    check_case_for_possibility(gauche, Possibility, Possibility1),
-    check_case_for_possibility(droite, Possibility1, Possibility2),
-    check_case_for_possibility(haut, Possibility2, Possibility3),
-    check_case_for_possibility(bas, Possibility3, Possibility4),
-    check_case_for_possibility(haut_gauche, Possibility4, Possibility5),
-    check_case_for_possibility(haut_droite, Possibility5, Possibility6),
-    check_case_for_possibility(bas_gauche, Possibility6, Possibility7),
-    check_case_for_possibility(bas_droite, Possibility7, PossibilityFinale),
+    check_case_for_possibility(CX, CY, gauche, Possibility, Possibility1),
+    check_case_for_possibility(CX, CY, droite, Possibility1, Possibility2),
+    check_case_for_possibility(CX, CY, haut, Possibility2, Possibility3),
+    check_case_for_possibility(CX, CY, bas, Possibility3, Possibility4),
+    check_case_for_possibility(CX, CY, haut_gauche, Possibility4, Possibility5),
+    check_case_for_possibility(CX, CY, haut_droite, Possibility5, Possibility6),
+    check_case_for_possibility(CX, CY, bas_gauche, Possibility6, Possibility7),
+    check_case_for_possibility(CX, CY, bas_droite, Possibility7, PossibilityFinale),
     retract(possibility(_)),
-    assert(possibility(PossibilityFinale)).
+    assert(possibility(PossibilityFinale)),
+    add_possibility(PossibilityFinale).
+
+check_all_posibilities_for_all_movements(CX, CY) :-
+    retract(heuristic_possibilities(_)),
+    assert(heuristic_possibilities([])),
+    forall(mouvement(Direction, DX, DY), check_all_cases_for_possibility(CX + DX, CY + DY)).
 
 check_possibility(position(chat, X, Y)) :-
     distance_manhattan(X, Y, 0, 0, Distance),
     Possibility is Possibility - Distance.
+
+negatif(X, Y) :-
+    Y is -X.
+
+% Génère les positions autour de (CX, CY) avec un rayon Distance.
+positions_autour(CX, CY, Distance, Positions) :-
+    negatif(Distance, NegDistance),
+    findall((NX, NY),
+        (between(NegDistance, Distance, DX),
+         between(NegDistance, Distance, DY),
+         \+ (DX = 0, DY = 0),  % On exclut la position actuelle du chat
+         NX is CX + DX,
+         NY is CY + DY),
+    Positions).
+
+
+cases_libres_autour([], []).
+cases_libres_autour([(X, Y)|Rest], [(X, Y)|CasesLibres]) :-
+    case_libre(X, Y), !,
+    cases_libres_autour(Rest, CasesLibres).
+cases_libres_autour([_|Rest], CasesLibres) :-
+    cases_libres_autour(Rest, CasesLibres).
+
+
+cases_libres_autour_chat(Distances, CasesLibres) :-
+    position(chat, CX, CY),
+    findall(CasesLibresDist,
+        (member(Distance, Distances),
+         positions_autour(CX, CY, Distance, Positions),
+         cases_libres_autour(Positions, CasesLibresDist)),
+    CasesLibresNested),
+    flatten(CasesLibresNested, CasesLibres).
 
 % Distance de Manhattan entre deux points
 distance_manhattan(X1, Y1, X2, Y2, Distance) :-
@@ -147,12 +196,21 @@ a_star_heuristique(CX, CY, (X, Y), (X, Y, F)) :-
     F is G + H.
     % write('f(n) = '). write(F), nl.
 
+min_max([(LX, LY) | Rest]) :-
+    position(chat, CX, CY),
+    walls(WallList),
+    TmpWalls is WallList,
+    append(TmpWalls, [(LX, LY)], NewTmpWalls),
+
+    min_max(Rest).
+
+
 % Pose un mur pour bloquer le chat
 poser_mur :-
     position(chat, CX, CY),
     grille_taille(Taille),
     Taille1 is Taille - 1,
-    
+    cases_libres_autour_chat([3], PossibleCases),
     a_star(CX, CY, (X, Y, _)),
 
 
@@ -203,46 +261,15 @@ afficher_ligne(X, MaxIndex, Y) :-
     afficher_ligne(X1, MaxIndex, Y).
 afficher_ligne(_, _, _).
 
-negatif(X, Y) :-
-    Y is -X.
-
-% Génère les positions autour de (CX, CY) avec un rayon Distance.
-positions_autour(CX, CY, Distance, Positions) :-
-    negatif(Distance, NegDistance),
-    findall((NX, NY),
-        (between(NegDistance, Distance, DX),
-         between(NegDistance, Distance, DY),
-         \+ (DX = 0, DY = 0),  % On exclut la position actuelle du chat
-         NX is CX + DX,
-         NY is CY + DY),
-    Positions).
-
-% Filtre les positions qui sont libres (sans mur ni joueur).
-cases_libres_autour([], []).
-cases_libres_autour([(X, Y)|Rest], [(X, Y)|CasesLibres]) :-
-    case_libre(X, Y), !,
-    cases_libres_autour(Rest, CasesLibres).
-cases_libres_autour([_|Rest], CasesLibres) :-
-    cases_libres_autour(Rest, CasesLibres).
-
-% Génère toutes les positions libres autour du chat, à différentes distances.
-cases_libres_autour_chat(Distances, CasesLibres) :-
-    position(chat, CX, CY),  % Récupère la position actuelle du chat
-    findall(CasesLibresDist,
-        (member(Distance, Distances),
-         positions_autour(CX, CY, Distance, Positions),
-         cases_libres_autour(Positions, CasesLibresDist)),
-    CasesLibresNested),
-    flatten(CasesLibresNested, CasesLibres).
-
 % Boucle de jeu
 jouer_tour :-
-    cases_libres_autour_chat([3], Cases),
+    position(chat, X, Y),
+    cases_libres_autour_chat([1], Cases),
     compte_elements(Cases, N),
     write('Cases autour du chat: '), write(Cases), nl,
     write('Nombre de cases autour du chat: '), write(N), nl,
-    check_all_cases_for_possibility,
-    write('Possibility: '), print_possibility,
+    check_all_posibilities_for_all_movements(X, Y),
+    write('HEURISTIC Possibilities: '), print_heuristic_possibilities,
     test_add_tuple_to_walls,
     print_all_walls,
     write('Boucle'), nl,
