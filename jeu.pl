@@ -71,25 +71,48 @@ dans_limites(X, Y) :-
     X >= 0, X < Taille,
     Y >= 0, Y < Taille.
 
+% Vérifie si une position est un mur
+is_in_walls(X, Y) :-
+    walls(WallList),
+    member((X, Y), WallList).
+
 % Vérifie si une case est libre (pas de mur, pas en dehors de la grille)
+case_libre_with_walls(X, Y) :-
+    dans_limites(X, Y),
+    \+ is_in_walls(X, Y).
+
 case_libre(X, Y) :-
     dans_limites(X, Y),
     \+ mur(X, Y).
 
 
-check_case_for_possibility(CX, CY, Direction, N, N1) :-
-    mouvement(Direction, DX, DY),
-    NX is CX + DX,
-    NY is CY + DY,
-    (\+ case_libre(NX, NY) ->
-        N1 is N - 1
+check_case_for_possibility(CX, CY, NX, NY, Direction, Possibility) :-
+    % Si la position actuelle est bloquée
+    (\+ case_libre(CX, CY) ->
+        Possibility = -1  % Si la position actuelle est bloquée, retour -1
     ;
-        N1 = N
+        % Si la case suivante est bloquée, retour -1
+        (\+ case_libre(NX, NY) ->
+            Possibility = -1,
+            write('Case bloquée dans la direction : '), write(Direction), nl
+        ;
+            % Sinon, on calcule le nombre de cases libres autour de la nouvelle position
+            get_all_cases_around(NX, NY, FreeCases),
+            length(FreeCases, Possibility),  % Le nombre de cases libres est la valeur heuristique
+            write('Cases libres autour de ('), write(NX), write(', '), write(NY), write(') : '), write(FreeCases), nl
+        )
     ).
 
-get_all_cases_around_chat(Cases) :-
-    position(chat, CX, CY),
-    findall((X, Y), (mouvement(_, DX, DY), NX is CX + DX, NY is CY + DY, case_libre(NX, NY)), Cases).
+
+
+get_all_cases_around(NX, NY, FreeCases) :-
+    findall((X, Y), (
+        mouvement(_, DX, DY),
+        X is NX + DX,
+        Y is NY + DY,
+        case_libre(X, Y)
+    ), FreeCases).
+
 
 check_all_cases_for_possibility(CX, CY) :-
     retract(possibility(_)),
@@ -108,9 +131,25 @@ check_all_cases_for_possibility(CX, CY) :-
     add_possibility(PossibilityFinale).
 
 check_all_posibilities_for_all_movements(CX, CY) :-
-    retract(heuristic_possibilities(_)),
+    retract(heuristic_possibilities(_)),  % Réinitialise la liste des possibilités heuristiques
     assert(heuristic_possibilities([])),
-    forall(mouvement(Direction, DX, DY), check_all_cases_for_possibility(CX + DX, CY + DY)).
+    
+    % On trouve toutes les possibilités en parcourant chaque direction
+    findall(Possibility, (
+        mouvement(Direction, DX, DY),  % Pour chaque direction
+        NX is CX + DX,
+        NY is CY + DY,
+        check_case_for_possibility(CX, CY, NX, NY, Direction, Possibility)
+    ), Possibilities),
+
+    % On stocke la liste des possibilités
+    retract(heuristic_possibilities(_)),
+    assert(heuristic_possibilities(Possibilities)),
+    
+    % Affiche les possibilités mises à jour
+    print_heuristic_possibilities.
+
+
 
 check_possibility(position(chat, X, Y)) :-
     distance_manhattan(X, Y, 0, 0, Distance),
@@ -210,7 +249,7 @@ poser_mur :-
     position(chat, CX, CY),
     grille_taille(Taille),
     Taille1 is Taille - 1,
-    cases_libres_autour_chat([3], PossibleCases),
+    cases_libres_autour_chat([2], PossibleCases),
     a_star(CX, CY, (X, Y, _)),
 
 
@@ -265,7 +304,7 @@ afficher_ligne(_, _, _).
 % Boucle de jeu
 jouer_tour :-
     position(chat, X, Y),
-    cases_libres_autour_chat([1], Cases),
+    cases_libres_autour_chat([2], Cases),
     compte_elements(Cases, N),
     write('Cases autour du chat: '), write(Cases), nl,
     write('Nombre de cases autour du chat: '), write(N), nl,
