@@ -86,22 +86,24 @@ case_libre(X, Y) :-
     \+ mur(X, Y).
 
 
-check_case_for_possibility(CX, CY, NX, NY, Direction, Possibility) :-
-    % Si la position actuelle est bloquée
+check_case_for_possibility(CX, CY, NX, NY, _, Possibility) :-
+    % Si la position actuelle ou la case cible est bloquée
     (\+ case_libre(CX, CY) ->
-        Possibility = -1  % Si la position actuelle est bloquée, retour -1
+        Possibility = -1  % Si la position actuelle est bloquée, retourne -1
     ;
-        % Si la case suivante est bloquée, retour -1
         (\+ case_libre(NX, NY) ->
-            Possibility = -1,
-            write('Case bloquée dans la direction : '), write(Direction), nl
+            Possibility = -1,  % Si la case suivante est bloquée, retourne -1
+            write('Case bloquée à ('), write(NX), write(', '), write(NY), write(')'), nl
         ;
             % Sinon, on calcule le nombre de cases libres autour de la nouvelle position
             get_all_cases_around(NX, NY, FreeCases),
-            length(FreeCases, Possibility),  % Le nombre de cases libres est la valeur heuristique
-            write('Cases libres autour de ('), write(NX), write(', '), write(NY), write(') : '), write(FreeCases), nl
+            length(FreeCases, Possibility),  % Le nombre de cases libres devient la valeur heuristique
+            write('Cases libres autour de ('), write(NX), write(', '), write(NY), write(') : '), write(Possibility), nl
         )
     ).
+
+
+
 
 
 
@@ -133,21 +135,25 @@ check_all_cases_for_possibility(CX, CY) :-
 check_all_posibilities_for_all_movements(CX, CY) :-
     retract(heuristic_possibilities(_)),  % Réinitialise la liste des possibilités heuristiques
     assert(heuristic_possibilities([])),
-    
-    % On trouve toutes les possibilités en parcourant chaque direction
+
+    % Utilisation de la liste de profondeurs fournie
+    cases_libres_autour_chat([2], FreeCasesAtDepths),
     findall(Possibility, (
-        mouvement(Direction, DX, DY),  % Pour chaque direction
-        NX is CX + DX,
-        NY is CY + DY,
-        check_case_for_possibility(CX, CY, NX, NY, Direction, Possibility)
+        % Pour chaque case libre à une certaine profondeur
+        member((NX, NY), FreeCasesAtDepths),
+        % On calcule la possibilité heuristique à partir de la nouvelle case
+        check_case_for_possibility(CX, CY, NX, NY, _, Possibility)
     ), Possibilities),
 
-    % On stocke la liste des possibilités
+    % Stocke la liste des possibilités calculées
     retract(heuristic_possibilities(_)),
     assert(heuristic_possibilities(Possibilities)),
     
     % Affiche les possibilités mises à jour
-    print_heuristic_possibilities.
+    print_heuristic_possibilities
+.
+
+
 
 
 
@@ -235,13 +241,42 @@ a_star_heuristique(CX, CY, (X, Y), (X, Y, F)) :-
     F is G + H.
     % write('f(n) = '). write(F), nl.
 
-min_max([(LX, LY) | Rest]) :-
-    position(chat, CX, CY),
-    walls(WallList),
-    TmpWalls is WallList,
-    append(TmpWalls, [(LX, LY)], NewTmpWalls),
+simulate_poser_mur(WX, WY, CX, CY, HeuristicValue) :-
+    % Simule la pose du mur en ajoutant (WX, WY) à la liste des murs
+    add_tuple_to_walls((WX, WY)),
 
-    min_max(Rest).
+    % Calcule les mouvements possibles du chat après la pose du mur
+    check_all_posibilities_for_all_movements(CX, CY),
+
+    % Récupère les possibilités heuristiques actuelles du chat
+    heuristic_possibilities(Possibilities),
+    sum_list(Possibilities, HeuristicValue),  % On somme les heuristiques pour obtenir une valeur globale
+
+    % Retire le mur simulé pour revenir à l'état initial
+    remove_tuple_from_walls((WX, WY)).
+
+
+min_max(CX, CY, BestPosition) :-
+    % Trouve toutes les cases où l'IA peut poser un mur autour du chat à une distance de 2
+    cases_libres_autour_chat([2], PossibleWallPositions),
+    
+    % On évalue l'heuristique pour chaque position de mur
+    findall((HeuristicValue, (WX, WY)), (
+        member((WX, WY), PossibleWallPositions),
+        % Simule la pose d'un mur à (WX, WY)
+        simulate_poser_mur(WX, WY, CX, CY, HeuristicValue)
+    ), HeuristicResults),
+
+    % Trie les résultats par HeuristicValue (minimisation)
+    sort(1, @=<, HeuristicResults, SortedResults),
+    
+    % Sélectionne la meilleure position (celle avec la plus petite valeur heuristique)
+    SortedResults = [(BestHeuristic, BestPosition) | _],
+    
+    % Affiche le meilleur résultat
+    write('Meilleure position pour poser un mur : '), write(BestPosition), nl,
+    write('Valeur heuristique : '), write(BestHeuristic), nl.
+
 
 
 % Pose un mur pour bloquer le chat
@@ -250,8 +285,8 @@ poser_mur :-
     grille_taille(Taille),
     Taille1 is Taille - 1,
     cases_libres_autour_chat([2], PossibleCases),
-    a_star(CX, CY, (X, Y, _)),
-
+    min_max(CX, CY, BestPosition),
+    BestPosition = (X, Y),
 
     assert(mur(X, Y)),
     % assert(walls([(X, Y)])),
