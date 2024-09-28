@@ -236,8 +236,8 @@ deplacer_chat(Direction) :-
     (case_libre(NX, NY) ->
         retract(position(chat, CX, CY)),
         assert(position(chat, NX, NY)),
-        write('Le chat s\'est déplacé en '), write(Direction), nl
-    ; write('Déplacement impossible dans cette direction.'), nl).
+        write('Le chat s\'est déplacé en '), write(Direction), nl, true
+    ; write('Déplacement impossible dans cette direction.'), nl, false).
 
 afficher_grille :-
     grille_taille(Taille),
