@@ -215,6 +215,7 @@ poser_mur :-
 
 
     assert(mur(X, Y)),
+    % assert(walls([(X, Y)])),
     add_tuple_to_walls((X, Y)),
     write('L\'IA a pose un mur en ('), write(X), write(Y), write(').'), nl.
 
@@ -273,7 +274,7 @@ jouer_tour :-
     test_add_tuple_to_walls,
     print_all_walls,
     write('Boucle'), nl,
-    write('Walls: '), write(walls), nl,
+    write('Walls: '), write(mur), nl,
     poser_mur,
     afficher_grille,
 
