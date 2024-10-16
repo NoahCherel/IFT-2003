@@ -91,6 +91,59 @@ possiblemove(X, L) :-
     findall(Y, (connect(X, L1), member(Y, L1), not(wall(Y))), L)
 .
 
+% Simule l'ajout d'un mur temporairement en utilisant assert/retract
+simulate_addwall(Wall, _, _) :-
+    assert(wall(Wall)).  % Ajoute temporairement le mur
+
+
+% Simule le déplacement de l'ange temporairement
+simulate_move(OldPos, NewPos, _, _) :-
+    retract(player(OldPos)),   % Rétracte temporairement l'ancienne position du joueur
+    assert(player(NewPos)).    % Déplace temporairement le joueur à la nouvelle position
+
+
+
+minimax(state(Player, _), Depth, true, BestMove, BestScore) :-  % Tour de l'ange
+    Depth > 0,
+    possiblemove(Player, Moves),  % Obtenir les mouvements possibles de l'ange
+    find_best_move(Moves, state(Player, _), Depth, false, BestMove, BestScore).
+
+minimax(state(Player, _), Depth, false, BestMove, BestScore) :-  % Tour du démon
+    Depth > 0,
+    findall(FreeCell, (board(Board), member(FreeCell, Board), not(wall(FreeCell))), FreeCells),
+    find_best_move(FreeCells, state(Player, _), Depth, true, BestMove, BestScore).
+
+find_best_move([], _, _, _, no_move, -inf).  % Aucune option de mouvement
+find_best_move([Move|Rest], State, Depth, IsAngeTurn, BestMove, BestScore) :-
+    % Simuler le déplacement ou le placement
+    (IsAngeTurn ->
+        simulate_move(State, Move, State, NewState),  % Simuler déplacement de l'ange
+        NextDepth is Depth - 1,
+        minimax(NewState, NextDepth, false, _, Score),  % Appel récursif de Minimax
+        retract(player(Move)),  % Rétracte le mouvement après la simulation
+        assert(player(State))   % Restaurer l'ancienne position de l'ange
+    ;
+        simulate_addwall(Move, State, NewState),  % Simuler placement de mur par le démon
+        NextDepth is Depth - 1,
+        minimax(NewState, NextDepth, true, _, Score),  % Appel récursif de Minimax
+        retract(wall(Move))  % Rétracter le mur après la simulation
+    ),
+    
+    % Explorer les autres mouvements possibles
+    find_best_move(Rest, State, Depth, IsAngeTurn, RestBestMove, RestBestScore),
+    
+    % Choisir la meilleure option
+    (IsAngeTurn ->
+        (Score > RestBestScore -> BestMove = Move, BestScore = Score
+        ; BestMove = RestBestMove, BestScore = RestBestScore)
+    ;
+        (Score < RestBestScore -> BestMove = Move, BestScore = Score
+        ; BestMove = RestBestMove, BestScore = RestBestScore)
+    ).
+
+
+
+
 %player move from X to Y
 move(X, Y) :- 
     (not(wall(Y)) ->
@@ -100,7 +153,7 @@ move(X, Y) :-
 .
 
 
-playerturn(L, Direction, X) :-
+playerturn(L, X) :-
     write('Entrez une direction pour bouger the angel\n Case possible :\n'),
     write(L),
     nl,
@@ -109,27 +162,28 @@ playerturn(L, Direction, X) :-
     move(X, Direction)
     ;
     write('Direction invalide\n'),
-    playerturn(L, Direction, X)
+    playerturn(L, X)
 .
 
-demonturn(Wall) :-
-    write('Entrez une case pour ajouter un mur\n'),
-    read(Wall),
-    addwall(Wall)
-    ;
-    write('Case invalide\n'),
-    demonturn(Wall)
-.
+demonturn :-
+    getplayerpos(Position),
+    minimax(state(Position, _), 3, false, Wall, _Score),  % Appel de Minimax
+    write(Wall),
+    addwall(Wall).  % Appliquer le meilleur coup trouvé
+
+
+
+
 
 game :-
-    tty_clear,
-    board(Board),
-    printboard(Board),
+    % tty_clear,
+    % board(Board),
+    % printboard(Board),
     getplayerpos(X),
     possiblemove(X, L),
     nl,
-    playerturn(L, Direction, X),
-    demonturn(Wall),
+    playerturn(L, X),
+    demonturn,
     possiblemove(Direction, L1),
     (L1 == [] -> true ; game)
 .
