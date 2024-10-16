@@ -64,9 +64,22 @@ connect(h6, [h5, h7, g6]).
 connect(h7, [h6, h8, g7]).
 connect(h8, [h7, g8]).
 % end of graph representation for chess board
-:- dynamic wall/1.
+board([a1, a2, a3, a4, a5, a6, a7, a8,
+       b1, b2, b3, b4, b5, b6, b7, b8,
+       c1, c2, c3, c4, c5, c6, c7, c8,
+       d1, d2, d3, d4, d5, d6, d7, d8,
+       e1, e2, e3, e4, e5, e6, e7, e8,
+       f1, f2, f3, f4, f5, f6, f7, f8,
+       g1, g2, g3, g4, g5, g6, g7, g8,
+       h1, h2, h3, h4, h5, h6, h7, h8]).
+
+:- dynamic wall/1, player/1.
 
 player(e4).
+
+
+getplayerpos(X) :-
+    player(X).
 
 addwall(X) :-
     (not(player(X)), not(wall(X)) ->
@@ -75,4 +88,68 @@ addwall(X) :-
 .
 
 possiblemove(X, L) :-
-    findall(Y, connect(X, Y), L).
+    findall(Y, (connect(X, L1), member(Y, L1), not(wall(Y))), L)
+.
+
+%player move from X to Y
+move(X, Y) :- 
+    (not(wall(Y)) ->
+        assert(player(Y)),
+        retract(player(X))
+    )
+.
+
+
+playerturn(L, Direction, X) :-
+    write('Entrez une direction pour bouger the angel\n Case possible :\n'),
+    write(L),
+    nl,
+    read(Direction),
+    member(Direction, L),
+    move(X, Direction)
+    ;
+    write('Direction invalide\n'),
+    playerturn(L, Direction, X)
+.
+
+demonturn(Wall) :-
+    write('Entrez une case pour ajouter un mur\n'),
+    read(Wall),
+    addwall(Wall)
+    ;
+    write('Case invalide\n'),
+    demonturn(Wall)
+.
+
+game :-
+    tty_clear,
+    board(Board),
+    printboard(Board),
+    getplayerpos(X),
+    possiblemove(X, L),
+    nl,
+    playerturn(L, Direction, X),
+    demonturn(Wall),
+    possiblemove(Direction, L1),
+    (L1 == [] -> true ; game)
+.
+
+
+
+% Imprime l'état du plateau de jeu
+printboard([]).  
+printboard([X|Y]) :-  
+    (player(X) -> write('O ')  
+    ; (wall(X) -> write('X ')  
+    ; write('. '))),  
+    
+    (X == a8 -> nl 
+    ; X == b8 -> nl 
+    ; X == c8 -> nl 
+    ; X == d8 -> nl 
+    ; X == e8 -> nl 
+    ; X == f8 -> nl 
+    ; X == g8 -> nl 
+    ; X == h8 -> nl
+    ; true),  
+    printboard(Y). 
