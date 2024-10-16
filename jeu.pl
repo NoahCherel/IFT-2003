@@ -148,7 +148,6 @@ check_all_posibilities_for_all_movements(CX, CY) :-
     % Stocke la liste des possibilités calculées
     retract(heuristic_possibilities(_)),
     assert(heuristic_possibilities(Possibilities)),
-    
     % Affiche les possibilités mises à jour
     print_heuristic_possibilities
 .
@@ -233,13 +232,13 @@ a_star(CX, CY, CaseBloquer) :-
     
 % Calculer f(n) pour une case donnée
 a_star_heuristique(CX, CY, (X, Y), (X, Y, F)) :-
-    % write('Calcul de f(n) pour ('), write(X), write(Y), write(')...'), nl,
+    write('Calcul de f(n) pour ('), write(X), write(Y), write(')...'), nl,
     heuristique(X, Y, CX, CY, H),
-    % write('h(n) = '), write(H), nl,
+    write('h(n) = '), write(H), nl,
     g(X, Y, G),
-    % write('g(n) = '), write(G), nl,
+    write('g(n) = '), write(G), nl,
     F is G + H.
-    % write('f(n) = '). write(F), nl.
+    write('f(n) = '). write(F), nl.
 
 simulate_poser_mur(WX, WY, CX, CY, HeuristicValue) :-
     % Simule la pose du mur en ajoutant (WX, WY) à la liste des murs
