@@ -87,69 +87,38 @@ addwall(X) :-
     )
 .
 
-possiblemove(X, L) :-
-    findall(Y, (connect(X, L1), member(Y, L1), not(wall(Y))), L)
+addflag(X) :-
+    (not(player(X)), not(wall(X)) ->
+        assert(flag(X))    
+    )
 .
 
-% Simule l'ajout d'un mur temporairement en utilisant assert/retract
-simulate_addwall(Wall, _, _) :-
-    assert(wall(Wall)).  % Ajoute temporairement le mur
+removeallflags :-
+    retractall(flag(_))
+.
 
+removeflag(X) :-
+    retract(flag(X))
+.
 
-% Simule le déplacement de l'ange temporairement
-simulate_move(OldPos, NewPos, _, _) :-
-    retract(player(OldPos)),   % Rétracte temporairement l'ancienne position du joueur
-    assert(player(NewPos)).    % Déplace temporairement le joueur à la nouvelle position
+possiblemove(X, L) :-
+    board(Board),
+    member(X, Board),
+    findall(Y, (connect(X, L1), member(Y, L1), (not(wall(Y)), not(flag(Y)))), L)
+.
 
-
-
-minimax(state(Player, _), Depth, true, BestMove, BestScore) :-  % Tour de l'ange
-    Depth > 0,
-    possiblemove(Player, Moves),  % Obtenir les mouvements possibles de l'ange
-    find_best_move(Moves, state(Player, _), Depth, false, BestMove, BestScore).
-
-minimax(state(Player, _), Depth, false, BestMove, BestScore) :-  % Tour du démon
-    Depth > 0,
-    findall(FreeCell, (board(Board), member(FreeCell, Board), not(wall(FreeCell))), FreeCells),
-    find_best_move(FreeCells, state(Player, _), Depth, true, BestMove, BestScore).
-
-find_best_move([], _, _, _, no_move, -inf).  % Aucune option de mouvement
-find_best_move([Move|Rest], State, Depth, IsAngeTurn, BestMove, BestScore) :-
-    % Simuler le déplacement ou le placement
-    (IsAngeTurn ->
-        simulate_move(State, Move, State, NewState),  % Simuler déplacement de l'ange
-        NextDepth is Depth - 1,
-        minimax(NewState, NextDepth, false, _, Score),  % Appel récursif de Minimax
-        retract(player(Move)),  % Rétracte le mouvement après la simulation
-        assert(player(State))   % Restaurer l'ancienne position de l'ange
-    ;
-        simulate_addwall(Move, State, NewState),  % Simuler placement de mur par le démon
-        NextDepth is Depth - 1,
-        minimax(NewState, NextDepth, true, _, Score),  % Appel récursif de Minimax
-        retract(wall(Move))  % Rétracter le mur après la simulation
-    ),
-    
-    % Explorer les autres mouvements possibles
-    find_best_move(Rest, State, Depth, IsAngeTurn, RestBestMove, RestBestScore),
-    
-    % Choisir la meilleure option
-    (IsAngeTurn ->
-        (Score > RestBestScore -> BestMove = Move, BestScore = Score
-        ; BestMove = RestBestMove, BestScore = RestBestScore)
-    ;
-        (Score < RestBestScore -> BestMove = Move, BestScore = Score
-        ; BestMove = RestBestMove, BestScore = RestBestScore)
-    ).
-
-
+possiblewalls(X, L) :-
+    board(Board),
+    member(X, Board),
+    findall(Y, (connect(X, L1), member(Y, L1), (not(wall(Y))), not(flag(Y))), L)
+.
 
 
 %player move from X to Y
 move(X, Y) :- 
-    (not(wall(Y)) ->
+    (not(wall(Y))) ->
         assert(player(Y)),
         retract(player(X))
-    )
 .
 
 
@@ -165,24 +134,49 @@ playerturn(L, X) :-
     playerturn(L, X)
 .
 
+evaluateBest(PlayerPos, Depth, BestScore, WallPos) :-
+    possiblewalls(PlayerPos, L),
+    forall(member(X, L), ( % get all possible walls
+        addflag(X),
+        possiblemove(PlayerPos, L1),
+        forall(member(Y, L1), ( % for each wall position, get all possible player moves
+            possiblewalls(Y, L2),
+            forall(member, (Z, L2), ( % for each player move, get all possible walls
+                addflag(Z),
+                possiblemove(U, L3),
+                max_list(L3, Score),
+                S1 = [Score|S1],
+                retract(flag(Z))
+            )),
+            S2 = [min_list(S1, Score)|S2]
+        )),
+        retract(flag(X)),
+        S3 = [max_list(S2, Score)|S3]
+    )),
+    min_list(S3, BestScore)
+.
+
+minmax(PlayerPos, Depth, MaxPlayer, BestMove, BestScore) :-
+    Depth > 0
+.
+
+
 demonturn :-
-    getplayerpos(Position),
-    minimax(state(Position, _), 3, false, Wall, _Score),  % Appel de Minimax
-    write(Wall),
-    addwall(Wall).  % Appliquer le meilleur coup trouvé
-
-
-
+    getplayerpos(X),
+    possiblemove(X, L),
+    % evaluateBest(L, BestMove, _),
+    addwall(BestMove)
+.
 
 
 game :-
     % tty_clear,
-    % board(Board),
-    % printboard(Board),
+    board(Board),
+    printboard(Board),
     getplayerpos(X),
     possiblemove(X, L),
     nl,
-    playerturn(L, X),
+    playerturn(L, _),
     demonturn,
     possiblemove(Direction, L1),
     (L1 == [] -> true ; game)
@@ -207,3 +201,36 @@ printboard([X|Y]) :-
     ; X == h8 -> nl
     ; true),  
     printboard(Y). 
+
+
+% get_game_state(state(PlayerPos, Walls)) :-
+%     getplayerpos(PlayerPos),
+%     findall(X, wall(X), Walls)
+% .
+
+
+% evaluate(Score) :-
+%     getplayerpos(PlayerPos),
+%     possiblemove(PlayerPos, Walls),
+%     length(Walls, Score)
+% .
+
+% evaluate(PlayerPos, Score) :-
+%     possiblemove(PlayerPos, Walls),
+%     length(Walls, Score)
+% .
+
+% evaluate(PlayerPos, Score, WallsToAdd) :-
+%     addwall(WallsToAdd),
+%     possiblemove(PlayerPos, Walls),
+%     length(Walls, Score),
+%     retract(wall(WallsToAdd))
+% .
+
+% %evaluate with list of possible moves and return the best move
+% evaluateBest([], _, 0).
+% evaluateBest([L|R], BestMove, Score) :-
+%     evaluate(PlayerPos, Score, L),
+%     evaluateBest(R, BestMove1, Score1),
+%     (Score > Score1 -> BestMove = L, Score = Score)
+% .
