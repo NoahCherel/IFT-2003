@@ -73,7 +73,7 @@ board([a1, a2, a3, a4, a5, a6, a7, a8,
        g1, g2, g3, g4, g5, g6, g7, g8,
        h1, h2, h3, h4, h5, h6, h7, h8]).
 
-:- dynamic wall/1, player/1.
+:- dynamic wall/1, player/1, flag/1.
 
 player(e4).
 
@@ -83,13 +83,13 @@ getplayerpos(X) :-
 
 addwall(X) :-
     (not(player(X)), not(wall(X)) ->
-        assert(wall(X))    
+        assert(wall(X))
     )
 .
 
 addflag(X) :-
     (not(player(X)), not(wall(X)) ->
-        assert(flag(X))    
+        assert(flag(X))
     )
 .
 
@@ -110,17 +110,57 @@ possiblemove(X, L) :-
 possiblewalls(X, L) :-
     board(Board),
     member(X, Board),
-    findall(Y, (connect(X, L1), member(Y, L1), (not(wall(Y))), not(flag(Y))), L)
+    findall(Y, (connect(X, L1), member(Y, L1), (not(wall(Y)), not(flag(Y)))), L)
 .
 
 
 %player move from X to Y
-move(X, Y) :- 
+move(X, Y) :-
     (not(wall(Y))) ->
         assert(player(Y)),
         retract(player(X))
 .
 
+minmax(PlayerPos, Depth, MaxPlayer, BestWall, BestScore) :-
+    Depth > 0,
+    (MaxPlayer == demon ->
+        possiblewalls(PlayerPos, Walls),
+        evaluate_max(Walls, PlayerPos, Depth, -inf, BestWall, BestScore)
+    ;
+        possiblemove(PlayerPos, PlayerMoves),
+        evaluate_min(PlayerMoves, PlayerPos, Depth, inf, BestWall, BestScore)
+    )
+.
+
+evaluate_max([], _PlayerPos, _Depth, BestScore, _BestWall, BestScore).
+evaluate_max([Wall|RemainingWalls], PlayerPos, Depth, CurrentBest, BestWall, BestScore) :-
+    addflag(Wall),
+    Depth1 is Depth - 1,
+    minmax(PlayerPos, Depth1, player, _, MoveScore),
+    retract(flag(Wall)),
+    (MoveScore > CurrentBest ->
+        NewBest = MoveScore,
+        NewBestWall = Wall
+    ;
+        NewBest = CurrentBest,
+        NewBestWall = BestWall
+    ),
+    evaluate_max(RemainingWalls, PlayerPos, Depth, NewBest, NewBestWall, BestScore)
+.
+
+evaluate_min([], _PlayerPos, _Depth, BestScore, _BestMove, BestScore).
+evaluate_min([Move|RemainingMoves], PlayerPos, Depth, CurrentBest, BestMove, BestScore) :-
+    Depth1 is Depth - 1,
+    minmax(Move, Depth1, demon, _, WallScore),
+    (WallScore < CurrentBest ->
+        NewBest = WallScore,
+        NewBestMove = Move
+    ;
+        NewBest = CurrentBest,
+        NewBestMove = BestMove
+    ),
+    evaluate_min(RemainingMoves, PlayerPos, Depth, NewBest, NewBestMove, BestScore)
+.
 
 playerturn(L, X) :-
     write('Entrez une direction pour bouger the angel\n Case possible :\n'),
@@ -134,43 +174,16 @@ playerturn(L, X) :-
     playerturn(L, X)
 .
 
-evaluateBest(PlayerPos, Depth, BestScore, WallPos) :-
-    possiblewalls(PlayerPos, L),
-    forall(member(X, L), ( % get all possible walls
-        addflag(X),
-        possiblemove(PlayerPos, L1),
-        forall(member(Y, L1), ( % for each wall position, get all possible player moves
-            possiblewalls(Y, L2),
-            forall(member, (Z, L2), ( % for each player move, get all possible walls
-                addflag(Z),
-                possiblemove(U, L3),
-                max_list(L3, Score),
-                S1 = [Score|S1],
-                retract(flag(Z))
-            )),
-            S2 = [min_list(S1, Score)|S2]
-        )),
-        retract(flag(X)),
-        S3 = [max_list(S2, Score)|S3]
-    )),
-    min_list(S3, BestScore)
-.
-
-minmax(PlayerPos, Depth, MaxPlayer, BestMove, BestScore) :-
-    Depth > 0
-.
-
-
 demonturn :-
-    getplayerpos(X),
-    possiblemove(X, L),
-    % evaluateBest(L, BestMove, _),
-    addwall(BestMove)
+    getplayerpos(PlayerPos),
+    minmax(PlayerPos, 3, demon, BestWall, _BestScore),
+    addwall(BestWall),
+    write('Le démon place un mur en: '),
+    write(BestWall), nl
 .
-
 
 game :-
-    % tty_clear,
+    tty_clear,
     board(Board),
     printboard(Board),
     getplayerpos(X),
@@ -185,52 +198,19 @@ game :-
 
 
 % Imprime l'état du plateau de jeu
-printboard([]).  
-printboard([X|Y]) :-  
-    (player(X) -> write('O ')  
-    ; (wall(X) -> write('X ')  
-    ; write('. '))),  
-    
-    (X == a8 -> nl 
-    ; X == b8 -> nl 
-    ; X == c8 -> nl 
-    ; X == d8 -> nl 
-    ; X == e8 -> nl 
-    ; X == f8 -> nl 
-    ; X == g8 -> nl 
+printboard([]).
+printboard([X|Y]) :-
+    (player(X) -> write('O ')
+    ; (wall(X) -> write('X ')
+    ; write('. '))),
+    (X == a8 -> nl
+    ; X == b8 -> nl
+    ; X == c8 -> nl
+    ; X == d8 -> nl
+    ; X == e8 -> nl
+    ; X == f8 -> nl
+    ; X == g8 -> nl
     ; X == h8 -> nl
-    ; true),  
-    printboard(Y). 
-
-
-% get_game_state(state(PlayerPos, Walls)) :-
-%     getplayerpos(PlayerPos),
-%     findall(X, wall(X), Walls)
-% .
-
-
-% evaluate(Score) :-
-%     getplayerpos(PlayerPos),
-%     possiblemove(PlayerPos, Walls),
-%     length(Walls, Score)
-% .
-
-% evaluate(PlayerPos, Score) :-
-%     possiblemove(PlayerPos, Walls),
-%     length(Walls, Score)
-% .
-
-% evaluate(PlayerPos, Score, WallsToAdd) :-
-%     addwall(WallsToAdd),
-%     possiblemove(PlayerPos, Walls),
-%     length(Walls, Score),
-%     retract(wall(WallsToAdd))
-% .
-
-% %evaluate with list of possible moves and return the best move
-% evaluateBest([], _, 0).
-% evaluateBest([L|R], BestMove, Score) :-
-%     evaluate(PlayerPos, Score, L),
-%     evaluateBest(R, BestMove1, Score1),
-%     (Score > Score1 -> BestMove = L, Score = Score)
-% .
+    ; true),
+    printboard(Y)
+.
