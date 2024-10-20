@@ -134,7 +134,7 @@ minmax(PlayerPos, Depth, MaxPlayer, BestWall, BestScore) :-
 
 evaluate_max([], _PlayerPos, _Depth, BestScore, _BestWall, BestScore).
 evaluate_max([Wall|RemainingWalls], PlayerPos, Depth, CurrentBest, BestWall, BestScore) :-
-    addflag(Wall),
+    addwall(Wall),
     Depth1 is Depth - 1,
     minmax(PlayerPos, Depth1, player, _, MoveScore),
     retract(flag(Wall)),
