@@ -195,6 +195,9 @@ game :-
     (L1 == [] -> true ; game)
 .
 
+start :-
+    not(game),
+    start.
 
 
 % Imprime l'état du plateau de jeu
