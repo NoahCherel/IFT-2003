@@ -189,7 +189,7 @@ game :-
     getplayerpos(X),
     possiblemove(X, L),
     nl,
-    playerturn(L, _),
+    playerturn(L, _), !,
     demonturn,
     possiblemove(Direction, L1),
     (L1 == [] -> true ; game)
@@ -202,6 +202,7 @@ printboard([]).
 printboard([X|Y]) :-
     (player(X) -> write('O ')
     ; (wall(X) -> write('X ')
+    ; flag(X) -> write('F ')
     ; write('. '))),
     (X == a8 -> nl
     ; X == b8 -> nl
