@@ -1,371 +1,236 @@
-:- dynamic position/3, mur/2, walls/1, possibility/1, heuristic_possibilities/1.
+% Représentation du graphe pour un échiquier, qui est ici notre plateau de jeu.
+% Chaque prédicat connect(X, Y) indique que la case X est connectée aux cases de la liste Y, 
+% c'est la manière du programme de gérer les mouvements possibles dans la boucle de jeu.
+connect(a1, [a2, b1]).
+connect(a2, [a1, a3]).
+connect(a3, [a2, a4, b3]).
+connect(a4, [a3, a5, b4]).
+connect(a5, [a4, a6, b5]).
+connect(a6, [a5, a7, b6]).
+connect(a7, [a6, a8, b7]).
+connect(a8, [a7, b8]).
+connect(b1, [a1, b2, c1]).
+connect(b2, [b1, b3, a2, c2]).
+connect(b3, [b2, b4, a3, c3]).
+connect(b4, [b3, b5, a4, c4]).
+connect(b5, [b4, b6, a5, c5]).
+connect(b6, [b5, b7, a6, c6]).
+connect(b7, [b6, b8, a7, c7]).
+connect(b8, [b7, a8, c8]).
+connect(c1, [b1, c2, d1]).
+connect(c2, [c1, c3, b2, d2]).
+connect(c3, [c2, c4, b3, d3]).
+connect(c4, [c3, c5, b4, d4]).
+connect(c5, [c4, c6, b5, d5]).
+connect(c6, [c5, c7, b6, d6]).
+connect(c7, [c6, c8, b7, d7]).
+connect(c8, [c7, b8, d8]).
+connect(d1, [c1, d2, e1]).
+connect(d2, [d1, d3, c2, e2]).
+connect(d3, [d2, d4, c3, e3]).
+connect(d4, [d3, d5, c4, e4]).
+connect(d5, [d4, d6, c5, e5]).
+connect(d6, [d5, d7, c6, e6]).
+connect(d7, [d6, d8, c7, e7]).
+connect(d8, [d7, c8, e8]).
+connect(e1, [d1, e2, f1]).
+connect(e2, [e1, e3, d2, f2]).
+connect(e3, [e2, e4, d3, f3]).
+connect(e4, [e3, e5, d4, f4]).
+connect(e5, [e4, e6, d5, f5]).
+connect(e6, [e5, e7, d6, f6]).
+connect(e7, [e6, e8, d7, f7]).
+connect(e8, [e7, d8, f8]).
+connect(f1, [e1, f2, g1]).
+connect(f2, [f1, f3, e2, g2]).
+connect(f3, [f2, f4, e3, g3]).
+connect(f4, [f3, f5, e4, g4]).
+connect(f5, [f4, f6, e5, g5]).
+connect(f6, [f5, f7, e6, g6]).
+connect(f7, [f6, f8, e7, g7]).
+connect(f8, [f7, e8, g8]).
+connect(g1, [f1, g2, h1]).
+connect(g2, [g1, g3, f2, h2]).
+connect(g3, [g2, g4, f3, h3]).
+connect(g4, [g3, g5, f4, h4]).
+connect(g5, [g4, g6, f5, h5]).
+connect(g6, [g5, g7, f6, h6]).
+connect(g7, [g6, g8, f7, h7]).
+connect(g8, [g7, f8, h8]).
+connect(h1, [g1, h2]).
+connect(h2, [h1, h3, g2]).
+connect(h3, [h2, h4, g3]).
+connect(h4, [h3, h5, g4]).
+connect(h5, [h4, h6, g5]).
+connect(h6, [h5, h7, g6]).
+connect(h7, [h6, h8, g7]).
+connect(h8, [h7, g8]).
 
-walls([]).
-heuristic_possibilities([]).
-possibility(8).
+% Définition du plateau de jeu avec toutes les cases.
+board([a1, a2, a3, a4, a5, a6, a7, a8,
+       b1, b2, b3, b4, b5, b6, b7, b8,
+       c1, c2, c3, c4, c5, c6, c7, c8,
+       d1, d2, d3, d4, d5, d6, d7, d8,
+       e1, e2, e3, e4, e5, e6, e7, e8,
+       f1, f2, f3, f4, f5, f6, f7, f8,
+       g1, g2, g3, g4, g5, g6, g7, g8,
+       h1, h2, h3, h4, h5, h6, h7, h8]).
 
-grille_taille(10).
+% Définition des prédicats dynamiques pour les murs et la position du joueur.
+:- dynamic wall/1, player/1.
 
-print_possibility :-
-    possibility(N),
-    write('Possibility: '), write(N), nl.
+% Position initiale du joueur.
+player(e4).
 
+% Retourne la position actuelle du joueur dans la boucle de jeu.
+getplayerpos(X) :-
+    player(X).
 
-print_heuristic_possibilities :-
-    heuristic_possibilities(List),
-    write('Heuristic possibilities: '), write(List), nl.
+% Ajoute un mur sur une case.
+addwall(X) :-
+    \+ player(X),       % Vérifie que la case n'est pas occupée par le joueur.
+    \+ wall(X),         % Vérifie que la case n'a pas déjà un mur.
+    assert(wall(X)).    % Ajoute le mur à la base de faits.
 
-print_walls([]).
-print_walls([(X, Y)|Rest]) :-
-    write('('), write(X), write(', '), write(Y), write(')'), nl,
-    print_walls(Rest).
+% Supprime un mur d'une case.
+removewall(X) :-
+    retract(wall(X)).   % Supprime le mur de la base de faits.
 
-print_all_walls :-
-    walls(WallList),
-    print_walls(WallList).
+% Permet de déplacer le joueur d'une case à une autre.
+move(X, Y) :-
+    \+ wall(Y),         % Vérifie que la case où l'ont veux aller est vide.
+    assert(player(Y)),  % Met à jour la position du joueur.
+    retract(player(X)). % Supprime l'ancienne position du joueur.
 
-add_tuple_to_walls(Tuple) :-
-    walls(WallList),
-    append(WallList, [Tuple], NewWallList),
-    retract(walls(WallList)),
-    assert(walls(NewWallList)).
+% Détermine les mouvements possibles à partir d'une case donnée, en enlevant les cases avec un mur.
+possible_moves(X, Walls, Moves) :-
+    connect(X, Adjacent),                       % Obtient les cases adjacentes de la case.
+    exclude(blocked(Walls), Adjacent, Moves).   % Exclut les cases bloquées par des murs.
 
-add_possibility(N) :-
-    heuristic_possibilities(List),
-    append(List, [N], NewList),
-    retract(heuristic_possibilities(List)),
-    assert(heuristic_possibilities(NewList)).
+% Détermine les endroits possibles pour placer un mur, en tenant compte de la position du joueur et des murs sur le plateau.
+possible_walls(PlayerPos, Walls, WallsToPlace) :-
+    connect(PlayerPos, Adjacent),                                           % Obtient les cases adjacentes au joueur.
+    exclude(occupied_or_blocked(PlayerPos, Walls), Adjacent, WallsToPlace). % Exclut les cases occupées ou bloquées.
 
-remove_tuple_from_walls(Tuple) :-
-    walls(WallList),
-    delete(WallList, Tuple, NewWallList),
-    retract(walls(WallList)),
-    assert(walls(NewWallList)).
+% Vérifie si une case est bloquée par un mur.
+blocked(Walls, Square) :-
+    member(Square, Walls).
 
-test_add_tuple_to_walls :-
-    add_tuple_to_walls((1, 1)),
-    remove_tuple_from_walls((1, 1)),
-    walls(NewWallList).
+% Vérifie si une case est occupée par le joueur ou bloquée par un mur.
+occupied_or_blocked(PlayerPos, Walls, Square) :-
+    Square == PlayerPos;    % Vérifie si la case est la position du joueur.
+    member(Square, Walls).  % Vérifie si la case est dans la liste des murs.
 
-compte_elements([], 0).
-
-% règle récursive : pour chaque élément, on ajoute 1 au compteur
-compte_elements([_|T], N) :-
-    compte_elements(T, N1),
-    N is N1 + 1.
-
-
-% Définir les directions de mouvement possibles
-mouvement(gauche, -1, 0).
-mouvement(droite, 1, 0).
-mouvement(haut, 0, -1).
-mouvement(bas, 0, 1).
-mouvement(haut_gauche, -1, -1).
-mouvement(haut_droite, 1, -1).
-mouvement(bas_gauche, -1, 1).
-mouvement(bas_droite, 1, 1).
-
-% Vérifie si une position est dans les limites de la grille
-dans_limites(X, Y) :-
-    grille_taille(Taille),
-    X >= 0, X < Taille,
-    Y >= 0, Y < Taille.
-
-% Vérifie si une position est un mur
-is_in_walls(X, Y) :-
-    walls(WallList),
-    member((X, Y), WallList).
-
-% Vérifie si une case est libre (pas de mur, pas en dehors de la grille)
-case_libre_with_walls(X, Y) :-
-    dans_limites(X, Y),
-    \+ is_in_walls(X, Y).
-
-case_libre(X, Y) :-
-    dans_limites(X, Y),
-    \+ mur(X, Y).
-
-
-check_case_for_possibility(CX, CY, NX, NY, _, Possibility) :-
-    % Si la position actuelle ou la case cible est bloquée
-    (\+ case_libre(CX, CY) ->
-        Possibility = -1  % Si la position actuelle est bloquée, retourne -1
-    ;
-        (\+ case_libre(NX, NY) ->
-            Possibility = -1,  % Si la case suivante est bloquée, retourne -1
-            write('Case bloquée à ('), write(NX), write(', '), write(NY), write(')'), nl
-        ;
-            % Sinon, on calcule le nombre de cases libres autour de la nouvelle position
-            get_all_cases_around(NX, NY, FreeCases),
-            length(FreeCases, Possibility),  % Le nombre de cases libres devient la valeur heuristique
-            write('Cases libres autour de ('), write(NX), write(', '), write(NY), write(') : '), write(Possibility), nl
-        )
+% Algorithme Minimax pour déterminer le meilleur coup pour le démon.
+minmax(PlayerPos, Walls, Depth, MaxPlayer, BestMove, BestScore) :-
+    Depth > 0, % Vérifie si la profondeur de recherche est supérieure à 0.
+    ( MaxPlayer == demon ->                                 % Si c'est le tour du démon.
+        possible_walls(PlayerPos, Walls, PossibleWalls),    % Obtient les emplacements possibles pour les murs.
+        ( PossibleWalls \= [] ->                            % S'il y a des emplacements possibles pour les murs.
+            evaluate_max(PossibleWalls, PlayerPos, Walls, Depth, -1000, none, BestMove, BestScore) % Évalue le meilleur emplacement oùposer un mur.
+        ; evaluate_score(PlayerPos, Walls, BestScore),      % Sinon, évalue le score actuel.
+          BestMove = none )                                 % Aucun mur n'est placé.
+    ; possible_moves(PlayerPos, Walls, PossibleMoves),      % Sinon, si c'est le tour du joueur, obtient les mouvements possibles.
+      ( PossibleMoves \= [] ->                              % S'il y a des mouvements possibles pour le joueur.
+            evaluate_min(PossibleMoves, PlayerPos, Walls, Depth, 1000, none, BestMove, BestScore) % Évalue le meilleur mouvement.
+        ; evaluate_score(PlayerPos, Walls, BestScore),      % Sinon, évalue le score actuel.
+          BestMove = none )                                 % Aucun mouvement n'est effectué.
     ).
 
+% Cas de base de l'algorithme Minimax lorsque la profondeur est 0, on évalue le score actuel.
+minmax(PlayerPos, Walls, 0, _MaxPlayer, none, Score) :-
+    evaluate_score(PlayerPos, Walls, Score).
 
+% Évalue le meilleur emplacement pour le mur en maximisant le score.
+evaluate_max([], _PlayerPos, _Walls, _Depth, BestScore, BestWall, BestWall, BestScore).
+evaluate_max([Wall|RemainingWalls], PlayerPos, Walls, Depth, CurrentBestScore, CurrentBestWall, BestWall, BestScore) :-
+    NewWalls = [Wall|Walls],                                    % Ajoute le mur à la liste des murs.
+    Depth1 is Depth - 1,                                        % Décrémente la profondeur.
+    minmax(PlayerPos, NewWalls, Depth1, player, _, MoveScore),  % Appelle l'algorithme Minimax pour le joueur.
+    ( MoveScore > CurrentBestScore ->                           % Si le score du mouvement est meilleur que le meilleur score actuel.
+        NewBestScore = MoveScore,                               % Met à jour le meilleur score.
+        NewBestWall = Wall                                      % Met à jour le meilleur emplacement pour le mur.
+    ; NewBestScore = CurrentBestScore,                          % Sinon, conserve le meilleur score actuel.
+      NewBestWall = CurrentBestWall ),                          % Conserve le meilleur emplacement pour le mur actuel.
+    evaluate_max(RemainingWalls, PlayerPos, Walls, Depth, NewBestScore, NewBestWall, BestWall, BestScore). % Évalue les emplacements de murs restants.
 
+% Évalue le meilleur mouvement en minimisant le score.
+evaluate_min([], _PlayerPos, _Walls, _Depth, BestScore, BestMove, BestMove, BestScore).
+evaluate_min([Move|RemainingMoves], PlayerPos, Walls, Depth, CurrentBestScore, CurrentBestMove, BestMove, BestScore) :-
+    Depth1 is Depth - 1,                                        % Décrémente la profondeur.
+    minmax(Move, Walls, Depth1, demon, _, WallScore),           % Appelle l'algorithme Minimax pour le démon.
+    ( WallScore < CurrentBestScore ->                           % Si le score du mur est inférieur au meilleur score actuel.
+        NewBestScore = WallScore,                               % Met à jour le meilleur score.
+        NewBestMove = Move                                      % Met à jour le meilleur mouvement.
+    ; NewBestScore = CurrentBestScore,                          % Sinon, conserve le meilleur score actuel.
+      NewBestMove = CurrentBestMove ),                          % Conserve le meilleur mouvement actuel.
+    evaluate_min(RemainingMoves, PlayerPos, Walls, Depth, NewBestScore, NewBestMove, BestMove, BestScore). % Évalue les mouvements restants.
 
+% Évalue le score actuel en fonction du nombre de mouvements possibles pour le joueur.
+evaluate_score(PlayerPos, Walls, Score) :-
+    possible_moves(PlayerPos, Walls, Moves),
+    length(Moves, NumMoves),
+    Score is -NumMoves.
 
-
-get_all_cases_around(NX, NY, FreeCases) :-
-    findall((X, Y), (
-        mouvement(_, DX, DY),
-        X is NX + DX,
-        Y is NY + DY,
-        case_libre(X, Y)
-    ), FreeCases).
-
-
-check_all_cases_for_possibility(CX, CY) :-
-    retract(possibility(_)),
-    assert(possibility(8)),
-    possibility(Possibility),
-    check_case_for_possibility(CX, CY, gauche, Possibility, Possibility1),
-    check_case_for_possibility(CX, CY, droite, Possibility1, Possibility2),
-    check_case_for_possibility(CX, CY, haut, Possibility2, Possibility3),
-    check_case_for_possibility(CX, CY, bas, Possibility3, Possibility4),
-    check_case_for_possibility(CX, CY, haut_gauche, Possibility4, Possibility5),
-    check_case_for_possibility(CX, CY, haut_droite, Possibility5, Possibility6),
-    check_case_for_possibility(CX, CY, bas_gauche, Possibility6, Possibility7),
-    check_case_for_possibility(CX, CY, bas_droite, Possibility7, PossibilityFinale),
-    retract(possibility(_)),
-    assert(possibility(PossibilityFinale)),
-    add_possibility(PossibilityFinale).
-
-check_all_posibilities_for_all_movements(CX, CY) :-
-    retract(heuristic_possibilities(_)),  % Réinitialise la liste des possibilités heuristiques
-    assert(heuristic_possibilities([])),
-
-    % Utilisation de la liste de profondeurs fournie
-    cases_libres_autour_chat([2], FreeCasesAtDepths),
-    findall(Possibility, (
-        % Pour chaque case libre à une certaine profondeur
-        member((NX, NY), FreeCasesAtDepths),
-        % On calcule la possibilité heuristique à partir de la nouvelle case
-        check_case_for_possibility(CX, CY, NX, NY, _, Possibility)
-    ), Possibilities),
-
-    % Stocke la liste des possibilités calculées
-    retract(heuristic_possibilities(_)),
-    assert(heuristic_possibilities(Possibilities)),
-    % Affiche les possibilités mises à jour
-    print_heuristic_possibilities
-.
-
-
-
-
-
-check_possibility(position(chat, X, Y)) :-
-    distance_manhattan(X, Y, 0, 0, Distance),
-    Possibility is Possibility - Distance.
-
-negatif(X, Y) :-
-    Y is -X.
-
-% Génère les positions autour de (CX, CY) avec un rayon Distance.
-positions_autour(CX, CY, Distance, Positions) :-
-    negatif(Distance, NegDistance),
-    findall((NX, NY),
-        (between(NegDistance, Distance, DX),
-         between(NegDistance, Distance, DY),
-         \+ (DX = 0, DY = 0),  % On exclut la position actuelle du chat
-         NX is CX + DX,
-         NY is CY + DY),
-    Positions).
-
-
-cases_libres_autour([], []).
-cases_libres_autour([(X, Y)|Rest], [(X, Y)|CasesLibres]) :-
-    case_libre(X, Y), !,
-    cases_libres_autour(Rest, CasesLibres).
-cases_libres_autour([_|Rest], CasesLibres) :-
-    cases_libres_autour(Rest, CasesLibres).
-
-
-cases_libres_autour_chat(Distances, CasesLibres) :-
-    position(chat, CX, CY),
-    findall(CasesLibresDist,
-        (member(Distance, Distances),
-         positions_autour(CX, CY, Distance, Positions),
-         cases_libres_autour(Positions, CasesLibresDist)),
-    CasesLibresNested),
-    flatten(CasesLibresNested, CasesLibres).
-
-% Distance de Manhattan entre deux points
-distance_manhattan(X1, Y1, X2, Y2, Distance) :-
-    Distance is abs(X1 - X2) + abs(Y1 - Y2).
-
-
-heuristique(X1, Y1, X2, Y2, Heuristique) :-
-    distance_manhattan(X1, Y1, X2, Y2, Heuristique).
-
-g(X, Y, G) :-
-    % On suppose que le coût g(n) est la distance à partir du centre de la grille
-    position(chat, CX, CY),
-    distance_manhattan(CX, CY, X, Y, G).
-
-% Convertir un tuple en un autre tuple, nécessaire a cause de sort
-tuple_conversion((X, Y, Z), ((X, Y), Z)).
-
-% convertir dans l'autre sens pour avoir le bon format de possage de mur
-back_conversion(((X, Y), Z), (X, Y, Z)).
-
-a_star(CX, CY, CaseBloquer) :-
-    grille_taille(Taille),
-    Taille1 is Taille - 1,
-    findall((X, Y), (between(0, Taille1, X), between(0, Taille1, Y), case_libre(X, Y)), CasesLibres), % Trouver toutes les cases libres
-    maplist(a_star_heuristique(CX, CY), CasesLibres, CasesAvecF), % Calculer g(n) + h(n) pour chaque case libre
-
-    maplist(tuple_conversion, CasesAvecF, CasesAvecFTuples), % Convertir chaque case avec f(n) en (Case, f(n)) pour pouvoir le sort
-    % write('Cases avec f(n) (tuples): '), write(CasesAvecFTuples), nl,
-
-    sort(2, @=<, CasesAvecFTuples, SortedCases), % on trie par f(n)
-    % write('Cases triées par f(n): '), write(SortedCases), nl,
-
-    nth0(0, SortedCases, FirstElement), 
-
-    back_conversion(FirstElement, FirstElementBack),
-
-    CaseBloquer = FirstElementBack,
-    write('Case bloquante: '), write(CaseBloquer), nl.
-    
-% Calculer f(n) pour une case donnée
-a_star_heuristique(CX, CY, (X, Y), (X, Y, F)) :-
-    write('Calcul de f(n) pour ('), write(X), write(Y), write(')...'), nl,
-    heuristique(X, Y, CX, CY, H),
-    write('h(n) = '), write(H), nl,
-    g(X, Y, G),
-    write('g(n) = '), write(G), nl,
-    F is G + H.
-    write('f(n) = '). write(F), nl.
-
-simulate_poser_mur(WX, WY, CX, CY, HeuristicValue) :-
-    % Simule la pose du mur en ajoutant (WX, WY) à la liste des murs
-    add_tuple_to_walls((WX, WY)),
-
-    % Calcule les mouvements possibles du chat après la pose du mur
-    check_all_posibilities_for_all_movements(CX, CY),
-
-    % Récupère les possibilités heuristiques actuelles du chat
-    heuristic_possibilities(Possibilities),
-    sum_list(Possibilities, HeuristicValue),  % On somme les heuristiques pour obtenir une valeur globale
-
-    % Retire le mur simulé pour revenir à l'état initial
-    remove_tuple_from_walls((WX, WY)).
-
-
-min_max(CX, CY, BestPosition) :-
-    % Trouve toutes les cases où l'IA peut poser un mur autour du chat à une distance de 2
-    cases_libres_autour_chat([2], PossibleWallPositions),
-    
-    % On évalue l'heuristique pour chaque position de mur
-    findall((HeuristicValue, (WX, WY)), (
-        member((WX, WY), PossibleWallPositions),
-        % Simule la pose d'un mur à (WX, WY)
-        simulate_poser_mur(WX, WY, CX, CY, HeuristicValue)
-    ), HeuristicResults),
-
-    % Trie les résultats par HeuristicValue (minimisation)
-    sort(1, @=<, HeuristicResults, SortedResults),
-    
-    % Sélectionne la meilleure position (celle avec la plus petite valeur heuristique)
-    SortedResults = [(BestHeuristic, BestPosition) | _],
-    
-    % Affiche le meilleur résultat
-    write('Meilleure position pour poser un mur : '), write(BestPosition), nl,
-    write('Valeur heuristique : '), write(BestHeuristic), nl.
-
-
-
-% Pose un mur pour bloquer le chat
-poser_mur :-
-    position(chat, CX, CY),
-    grille_taille(Taille),
-    Taille1 is Taille - 1,
-    cases_libres_autour_chat([2], PossibleCases),
-    min_max(CX, CY, BestPosition),
-    BestPosition = (X, Y),
-
-    assert(mur(X, Y)),
-    % assert(walls([(X, Y)])),
-    add_tuple_to_walls((X, Y)),
-    write('L\'IA a pose un mur en ('), write(X), write(Y), write(').'), nl.
-
-% Calcule la distance pour chaque case libre par rapport au chat
-distance_vers_chat(CX, CY, (X, Y), (X, Y, Distance)) :-
-    distance_manhattan(CX, CY, X, Y, Distance).
-
-chat_bloque :-
-    position(chat, CX, CY),
-    forall(mouvement(_, DX, DY),
-           (NX is CX + DX, NY is CY + DY, \+ case_libre(NX, NY))),
-    write('Le chat est bloqué! L\'IA a gagné!'), nl.
-
-deplacer_chat(Direction) :-
-    mouvement(Direction, DX, DY),
-    position(chat, CX, CY),
-    NX is CX + DX,
-    NY is CY + DY,
-    (case_libre(NX, NY) ->
-        retract(position(chat, CX, CY)),
-        assert(position(chat, NX, NY)),
-        write('Le chat s\'est déplacé en '), write(Direction), nl, true
-    ; write('Déplacement impossible dans cette direction.'), nl, false).
-
-afficher_grille :-
-    grille_taille(Taille),
-    MaxIndex is Taille - 1,
-    afficher_lignes(0, MaxIndex).
-
-afficher_lignes(Y, MaxIndex) :-
-    Y =< MaxIndex,
-    afficher_ligne(0, MaxIndex, Y),
+% Gère le tour du joueur, en demandant une direction et en effectuant le mouvement.
+playerturn(L, X) :-
+    write('Entrez une direction pour bouger l\'ange\nCases possibles :\n'),
+    write(L),
     nl,
-    Y1 is Y + 1,
-    afficher_lignes(Y1, MaxIndex).
-afficher_lignes(_, _).
-
-afficher_ligne(X, MaxIndex, Y) :-
-    X =< MaxIndex,
-    (position(chat, X, Y) -> write(' C ')
-    ; mur(X, Y) -> write(' # ')
-    ; write(' . ')),
-    X1 is X + 1,
-    afficher_ligne(X1, MaxIndex, Y).
-afficher_ligne(_, _, _).
-
-% Boucle de jeu
-jouer_tour :-
-    position(chat, X, Y),
-    cases_libres_autour_chat([2], Cases),
-    compte_elements(Cases, N),
-    write('Cases autour du chat: '), write(Cases), nl,
-    write('Nombre de cases autour du chat: '), write(N), nl,
-    check_all_posibilities_for_all_movements(X, Y),
-    write('HEURISTIC Possibilities: '), print_heuristic_possibilities,
-    test_add_tuple_to_walls,
-    print_all_walls,
-    write('Boucle'), nl,
-    write('Walls: '), write(mur), nl,
-    poser_mur,
-    afficher_grille,
-
-    % Condition de fin de jeu, le chat est bloqué
-    (chat_bloque -> true ; joueur_deplace_chat, jouer_tour).
-
-joueur_deplace_chat :-
-    write('Entrez une direction pour déplacer le chat (gauche, droite, haut, bas, haut_gauche, haut_droite, bas_gauche, bas) : '),
     read(Direction),
+    (
+        member(Direction, L) ->         % Si la direction est valide.
+            move(X, Direction)          % Effectue le mouvement.
+        ;
+        write('Direction invalide\n'),  % Sinon, affiche un message d'erreur.
+        playerturn(L, X)                % Redemande une nouvelle direction au joueur.
+    ).
 
-    (mouvement(Direction, _, _) -> deplacer_chat(Direction) ; write('Direction invalide.'), nl, joueur_deplace_chat).
+% Gère le tour du démon en plaçant un mur au meilleure endroit.
+demonturn :-
+    getplayerpos(PlayerPos),                                        % Obtient la position du joueur.
+    findall(W, wall(W), Walls),                                     % Obtient la liste des murs.
+    ( minmax(PlayerPos, Walls, 3, demon, BestWall, _BestScore) ->   % Appelle l'algorithme Minimax pour le démon.
+        ( BestWall \= none ->                                       % Si un mur peut être placé.
+            addwall(BestWall),                                      % Ajoute le mur.
+            write('Le démon place un mur en: '),
+            write(BestWall), nl
+        ; write('Le démon ne peut pas placer de mur.'), nl )
+    ; write('Le démon ne peut pas déterminer un mur à placer.'), nl ).
 
-demarrer :-
-    write('Le jeu commence!'), nl,
-    jouer_tour.
+% Boucle de jeu principale.
+game :-
+    board(Board),                   % Obtient le plateau de jeu.
+    printboard(Board),              % Affiche le plateau de jeu.
+    getplayerpos(X),                % Obtient la position du joueur.
+    findall(W, wall(W), Walls),     % Obtient la liste des murs.
+    possible_moves(X, Walls, L),    % Obtient les mouvements possibles pour le joueur.
+    ( L == [] ->                    % Si le joueur ne peut pas bouger, le démon gagne.
+        write('Le joueur ne peut plus bouger. Le démon a gagné.'), nl
+    ; nl,
+      playerturn(L, X),             % Tour du joueur.
+      ( demonturn ->                % Tour du démon.
+          game                      % Boucle de jeu.
+        ; write('Le jeu se termine car le démon ne peut pas jouer.'), nl ) 
+    ).
 
-init :-
-    assert(position(chat, 5, 5)). % Position initiale du chat
+% Démarre le jeu.
+start :-
+    game.
 
-% Entrée principale
-:- init, demarrer.
+% Affiche le plateau de jeu.
+printboard([]).
+printboard([X|Y]) :-
+    (player(X) -> write('O ')       % Affiche 'O' à la la position du joueur.
+    ; wall(X) -> write('X ')        % Affiche 'X' pour les murs placés par le démon.
+    ; write('. ')),                 % Affiche '.' pour les cases vides.
+    (X == a8 -> nl                  % Saut de ligne à la fin de chaque ligne pour que le plateau soit lisible.
+    ; X == b8 -> nl
+    ; X == c8 -> nl
+    ; X == d8 -> nl
+    ; X == e8 -> nl
+    ; X == f8 -> nl
+    ; X == g8 -> nl
+    ; X == h8 -> nl
+    ; true),
+    printboard(Y).                  % Affiche le reste du plateau.
