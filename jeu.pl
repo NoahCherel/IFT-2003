@@ -199,9 +199,10 @@ demonturn :-
     ; write('Le démon ne peut pas déterminer un mur à placer.'), nl ).
 
 % Boucle de jeu principale.
-game :-
-    board(Board),                   % Obtient le plateau de jeu.
-    printboard(Board),              % Affiche le plateau de jeu.
+game(20) :-
+    write('Le joueur a gagné.'), nl. % Si le joueur a survécu 20 tours, il gagne.
+game(P) :-
+    printboard,              % Affiche le plateau de jeu.
     getplayerpos(X),                % Obtient la position du joueur.
     findall(W, wall(W), Walls),     % Obtient la liste des murs.
     possible_moves(X, Walls, L),    % Obtient les mouvements possibles pour le joueur.
@@ -210,13 +211,14 @@ game :-
     ; nl,
       playerturn(L, X),             % Tour du joueur.
       ( demonturn ->                % Tour du démon.
-          game                      % Boucle de jeu.
+          P1 is P + 1,              % Incrémente le compteur de tours.
+          game(P1)                 % Boucle de jeu.
         ; write('Le jeu se termine car le démon ne peut pas jouer.'), nl ) 
     ).
 
 % Démarre le jeu.
 start :-
-    game.
+    game(0).
 
 % Affiche le plateau de jeu.
 printboard([]).
@@ -234,3 +236,39 @@ printboard([X|Y]) :-
     ; X == h8 -> nl
     ; true),
     printboard(Y).                  % Affiche le reste du plateau.
+
+
+printboard :-
+    nl,
+    Rows = [8,7,6,5,4,3,2,1],
+    Columns = ['a','b','c','d','e','f','g','h'],
+    print_rows(Rows, Columns),
+    print_column_labels(Columns).
+
+print_rows([], _Columns).
+print_rows([Row|RestRows], Columns) :-
+    write(Row), write(' '), 
+    print_row(Row, Columns),
+    nl,
+    print_rows(RestRows, Columns).
+
+print_row(_Row, []).
+print_row(Row, [Col|RestCols]) :-
+    number_string(Row, RowStr),
+    atom_string(ColAtom, Col),
+    atom_concat(ColAtom, RowStr, Position),
+    ( player(Position) -> write(' O')
+    ; wall(Position) -> write(' X')
+    ; write(' .')
+    ),
+    print_row(Row, RestCols).
+
+print_column_labels(Columns) :-
+    write('  '),
+    print_columns(Columns),
+    nl.
+
+print_columns([]).
+print_columns([Col|RestCols]) :-
+    write(' '), write(Col),
+    print_columns(RestCols).
